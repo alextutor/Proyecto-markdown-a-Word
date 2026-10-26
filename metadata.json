@@ -1,0 +1,6 @@
+{
+  "name": "Conversor Markdown a Word",
+  "description": "Herramienta profesional para convertir documentos Markdown a archivos Microsoft Word (.docx) con estilos elegantes, tablas, listas y opciones de personalización.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
