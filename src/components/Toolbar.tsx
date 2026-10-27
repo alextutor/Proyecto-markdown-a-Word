@@ -20,6 +20,7 @@ import {
   RotateCcw,
   Sparkles,
   Wand2,
+  ClipboardPaste,
 } from 'lucide-react';
 
 interface ToolbarProps {
@@ -29,6 +30,7 @@ interface ToolbarProps {
   onReset: () => void;
   onLoadSample: () => void;
   onNormalizeTables?: () => void;
+  onPasteFormatted?: () => void;
 }
 
 export const Toolbar: React.FC<ToolbarProps> = ({
@@ -38,6 +40,7 @@ export const Toolbar: React.FC<ToolbarProps> = ({
   onReset,
   onLoadSample,
   onNormalizeTables,
+  onPasteFormatted,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -280,6 +283,19 @@ function ejemplo() {
           className="hidden"
           id="markdown-file-input"
         />
+
+        {onPasteFormatted && (
+          <button
+            id="toolbar-btn-paste-formatted"
+            type="button"
+            onClick={onPasteFormatted}
+            className="inline-flex items-center gap-1 px-2.5 py-1 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/80 rounded-md font-medium text-xs shadow-xs transition-colors cursor-pointer"
+            title="Pegar texto con formato (convierte negrita, viñetas, tablas automáticamente a Markdown)"
+          >
+            <ClipboardPaste className="w-3.5 h-3.5 text-emerald-600" />
+            <span>Pegar con formato</span>
+          </button>
+        )}
 
         <button
           id="toolbar-btn-upload"

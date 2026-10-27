@@ -458,6 +458,7 @@ export default function App() {
               }}
               onLoadSample={() => setIsTemplatesOpen(true)}
               onNormalizeTables={handleNormalizeTables}
+              onNotify={showToast}
               isDragging={isDragging}
               onDragEnter={handleDragEnter}
               onDragLeave={handleDragLeave}
@@ -480,6 +481,10 @@ export default function App() {
               settings={settings}
               zoom={zoom}
               onZoomChange={setZoom}
+              onPasteFormatted={(pastedMd) => {
+                setMarkdown((prev) => (prev.trim() ? `${prev}\n\n${pastedMd}` : pastedMd));
+              }}
+              onNotify={showToast}
             />
           </div>
         )}

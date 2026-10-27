@@ -1,14 +1,28 @@
 import React, { useMemo } from 'react';
 import { marked } from 'marked';
 import { DocumentSettings } from '../types/converter';
-import { ZoomIn, ZoomOut, Maximize2, FileText, CheckCircle2, Circle } from 'lucide-react';
+import {
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  FileText,
+  CheckCircle2,
+  Circle,
+  ClipboardPaste,
+} from 'lucide-react';
 import { normalizeAllTables } from '../utils/tableNormalizer';
+import {
+  convertHtmlToMarkdown,
+  extractMarkdownFromClipboard,
+} from '../utils/htmlToMarkdown';
 
 interface WordPreviewProps {
   markdown: string;
   settings: DocumentSettings;
   zoom: number;
   onZoomChange: (newZoom: number) => void;
+  onPasteFormatted?: (markdownText: string) => void;
+  onNotify?: (message: string, type?: 'success' | 'info' | 'error') => void;
 }
 
 export const WordPreview: React.FC<WordPreviewProps> = ({
@@ -16,6 +30,8 @@ export const WordPreview: React.FC<WordPreviewProps> = ({
   settings,
   zoom,
   onZoomChange,
+  onPasteFormatted,
+  onNotify,
 }) => {
   // Parse markdown into HTML for real-time preview
   const parsedHtml = useMemo(() => {
@@ -70,12 +86,65 @@ export const WordPreview: React.FC<WordPreviewProps> = ({
     }
   }, [settings.lineSpacing]);
 
+  // Handle paste directly into the Word Preview panel
+  const handlePreviewPaste = (e: React.ClipboardEvent) => {
+    const result = extractMarkdownFromClipboard(e.clipboardData);
+    if (result.markdown && result.markdown.trim()) {
+      e.preventDefault();
+      onPasteFormatted?.(result.markdown);
+      onNotify?.(
+        '✨ Texto con formato pegado en la vista previa y sincronizado con el editor Markdown.',
+        'success'
+      );
+    }
+  };
+
+  const handlePasteButtonClick = async () => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.read) {
+        const items = await navigator.clipboard.read();
+        for (const item of items) {
+          if (item.types.includes('text/html')) {
+            const blob = await item.getType('text/html');
+            const html = await blob.text();
+            const md = convertHtmlToMarkdown(html);
+            if (md && md.trim()) {
+              onPasteFormatted?.(md);
+              onNotify?.(
+                '✨ Texto con formato pegado en la vista previa y sincronizado con el editor Markdown.',
+                'success'
+              );
+              return;
+            }
+          }
+        }
+      }
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+          onPasteFormatted?.(text);
+          onNotify?.('Texto pegado en la vista previa.', 'info');
+          return;
+        }
+      }
+    } catch {
+      onNotify?.(
+        '💡 Presiona Ctrl+V en el panel izquierdo (editor) para pegar directamente tu texto con formato.',
+        'info'
+      );
+    }
+  };
+
   return (
-    <div className="flex flex-col h-full bg-slate-200/70 select-text overflow-hidden">
+    <div
+      className="flex flex-col h-full bg-slate-200/70 select-text overflow-hidden focus:outline-none"
+      tabIndex={0}
+      onPaste={handlePreviewPaste}
+    >
       {/* Top Preview Bar */}
       <div
         id="preview-header-bar"
-        className="flex items-center justify-between px-4 py-2 bg-white border-b border-slate-200 text-xs text-slate-600 z-10"
+        className="flex items-center justify-between px-4 py-2 bg-white border-b border-slate-200 text-xs text-slate-600 z-10 gap-2 flex-wrap"
       >
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5 font-medium text-slate-800">
@@ -88,38 +157,53 @@ export const WordPreview: React.FC<WordPreviewProps> = ({
           </span>
         </div>
 
-        {/* Zoom controls */}
-        <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-md border border-slate-200">
-          <button
-            id="preview-zoom-out"
-            type="button"
-            onClick={() => onZoomChange(Math.max(50, zoom - 10))}
-            className="p-1 hover:bg-white rounded text-slate-600 transition-colors"
-            title="Reducir zoom"
-          >
-            <ZoomOut className="w-3.5 h-3.5" />
-          </button>
-          <span className="px-2 font-mono text-[11px] min-w-10 text-center font-semibold text-slate-700">
-            {zoom}%
-          </span>
-          <button
-            id="preview-zoom-in"
-            type="button"
-            onClick={() => onZoomChange(Math.min(150, zoom + 10))}
-            className="p-1 hover:bg-white rounded text-slate-600 transition-colors"
-            title="Aumentar zoom"
-          >
-            <ZoomIn className="w-3.5 h-3.5" />
-          </button>
-          <button
-            id="preview-zoom-reset"
-            type="button"
-            onClick={() => onZoomChange(100)}
-            className="p-1 hover:bg-white rounded text-slate-600 transition-colors"
-            title="Restablecer al 100%"
-          >
-            <Maximize2 className="w-3.5 h-3.5" />
-          </button>
+        <div className="flex items-center gap-2">
+          {onPasteFormatted && (
+            <button
+              id="preview-btn-paste-formatted"
+              type="button"
+              onClick={handlePasteButtonClick}
+              className="inline-flex items-center gap-1 px-2.5 py-1 text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/80 rounded-md font-medium text-xs shadow-xs transition-colors cursor-pointer"
+              title="Pegar texto con formato aquí (convierte negritas, viñetas, tablas automáticamente a Markdown)"
+            >
+              <ClipboardPaste className="w-3.5 h-3.5 text-emerald-600" />
+              <span>Pegar con formato</span>
+            </button>
+          )}
+
+          {/* Zoom controls */}
+          <div className="flex items-center gap-1 bg-slate-100 p-0.5 rounded-md border border-slate-200">
+            <button
+              id="preview-zoom-out"
+              type="button"
+              onClick={() => onZoomChange(Math.max(50, zoom - 10))}
+              className="p-1 hover:bg-white rounded text-slate-600 transition-colors"
+              title="Reducir zoom"
+            >
+              <ZoomOut className="w-3.5 h-3.5" />
+            </button>
+            <span className="px-2 font-mono text-[11px] min-w-10 text-center font-semibold text-slate-700">
+              {zoom}%
+            </span>
+            <button
+              id="preview-zoom-in"
+              type="button"
+              onClick={() => onZoomChange(Math.min(150, zoom + 10))}
+              className="p-1 hover:bg-white rounded text-slate-600 transition-colors"
+              title="Aumentar zoom"
+            >
+              <ZoomIn className="w-3.5 h-3.5" />
+            </button>
+            <button
+              id="preview-zoom-reset"
+              type="button"
+              onClick={() => onZoomChange(100)}
+              className="p-1 hover:bg-white rounded text-slate-600 transition-colors"
+              title="Restablecer al 100%"
+            >
+              <Maximize2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
       </div>
 

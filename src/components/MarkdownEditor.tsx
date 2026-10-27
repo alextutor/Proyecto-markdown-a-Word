@@ -1,6 +1,10 @@
 import React, { useRef, useMemo } from 'react';
 import { Toolbar } from './Toolbar';
 import { UploadCloud } from 'lucide-react';
+import {
+  extractMarkdownFromClipboard,
+  convertHtmlToMarkdown,
+} from '../utils/htmlToMarkdown';
 
 interface MarkdownEditorProps {
   value: string;
@@ -9,6 +13,7 @@ interface MarkdownEditorProps {
   onReset: () => void;
   onLoadSample: () => void;
   onNormalizeTables?: () => void;
+  onNotify?: (message: string, type?: 'success' | 'info' | 'error') => void;
   isDragging: boolean;
   onDragEnter: (e: React.DragEvent) => void;
   onDragLeave: (e: React.DragEvent) => void;
@@ -23,6 +28,7 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
   onReset,
   onLoadSample,
   onNormalizeTables,
+  onNotify,
   isDragging,
   onDragEnter,
   onDragLeave,
@@ -132,6 +138,72 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
     }
   };
 
+  // Intercept paste event to automatically convert rich text (negritas, viñetas, tablas, títulos) to clean Markdown
+  const handlePaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
+    const result = extractMarkdownFromClipboard(e.clipboardData);
+    if (result.hasFormatting && result.markdown) {
+      e.preventDefault();
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+
+      const start = textarea.selectionStart;
+      const end = textarea.selectionEnd;
+      const text = textarea.value;
+
+      const newText = text.substring(0, start) + result.markdown + text.substring(end);
+      onChange(newText);
+
+      setTimeout(() => {
+        textarea.focus();
+        const newPos = start + result.markdown.length;
+        textarea.setSelectionRange(newPos, newPos);
+      }, 10);
+
+      onNotify?.(
+        '✨ Texto con formato pegado: negritas, viñetas y tablas convertidas a Markdown automáticamente.',
+        'success'
+      );
+    }
+  };
+
+  // Handle clicking the "Pegar con formato" toolbar button
+  const handlePasteFormatted = async () => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.read) {
+        const items = await navigator.clipboard.read();
+        for (const item of items) {
+          if (item.types.includes('text/html')) {
+            const blob = await item.getType('text/html');
+            const html = await blob.text();
+            const markdown = convertHtmlToMarkdown(html);
+            if (markdown && markdown.trim()) {
+              handleInsertBlock(markdown);
+              onNotify?.(
+                '✨ Texto con formato pegado: negritas, viñetas y tablas convertidas a Markdown.',
+                'success'
+              );
+              return;
+            }
+          }
+        }
+      }
+
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        const plainText = await navigator.clipboard.readText();
+        if (plainText) {
+          handleInsertBlock(plainText);
+          onNotify?.('Texto pegado desde el portapapeles.', 'info');
+          return;
+        }
+      }
+    } catch {
+      onNotify?.(
+        '💡 Presiona Ctrl+V (o Cmd+V) dentro del editor para pegar directamente tu texto con formato.',
+        'info'
+      );
+    }
+  };
+
   return (
     <div
       id="markdown-editor-pane"
@@ -149,6 +221,7 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
         onReset={onReset}
         onLoadSample={onLoadSample}
         onNormalizeTables={onNormalizeTables}
+        onPasteFormatted={handlePasteFormatted}
       />
 
       {/* Editor Main Surface with Line Numbers */}
@@ -173,7 +246,8 @@ export const MarkdownEditor: React.FC<MarkdownEditorProps> = ({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Escribe o pega aquí tu código Markdown... Puedes usar encabezados (#), negritas (**), tablas (|), listas (-), bloques de código (```) y más."
+          onPaste={handlePaste}
+          placeholder="Escribe o pega aquí tu texto con formato... El editor convertirá automáticamente negritas, viñetas, títulos y tablas a Markdown."
           spellCheck={false}
           className="flex-1 w-full h-full p-3 font-mono text-sm leading-6 text-slate-800 resize-none outline-hidden bg-white selection:bg-blue-100 selection:text-blue-900 border-none placeholder:text-slate-400 overflow-y-auto"
         />
